@@ -1812,6 +1812,99 @@ export class DBStore {
     return undefined;
   }
 
+  // --- Scan Submission & Extracted Response Methods (Issue #366) ---
+
+  async getScanSubmissions() {
+    if (this.mongoDb) return await this.mongoDb.collection<ScanSubmission>('scan_submissions').find({}).toArray();
+    return (this.data?.scanSubmissions || []);
+  }
+
+  async getScanSubmissionById(id: string) {
+    if (this.mongoDb) return await this.mongoDb.collection<ScanSubmission>('scan_submissions').findOne({ id });
+    return (this.data?.scanSubmissions || []).find(s => s.id === id);
+  }
+
+  async addScanSubmission(submission: ScanSubmission) {
+    if (this.mongoDb) {
+      await this.mongoDb.collection('scan_submissions').insertOne(submission);
+    }
+    if (this.data) {
+      if (!this.data.scanSubmissions) this.data.scanSubmissions = [];
+      this.data.scanSubmissions.push(submission);
+    }
+    return submission;
+  }
+
+  async updateScanSubmission(id: string, updates: Partial<ScanSubmission>) {
+    if (this.mongoDb) {
+      await this.mongoDb.collection('scan_submissions').updateOne({ id }, { $set: updates });
+      return await this.mongoDb.collection<ScanSubmission>('scan_submissions').findOne({ id });
+    }
+    if (this.data) {
+      const list = this.data.scanSubmissions || [];
+      const idx = list.findIndex(s => s.id === id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...updates };
+        return list[idx];
+      }
+    }
+    return undefined;
+  }
+
+  async getExtractedResponses(filter?: {
+    scanSubmissionId?: string;
+    questionId?: string;
+    reviewState?: ExtractedResponseReviewState;
+    requiresReview?: boolean;
+  }) {
+    if (this.mongoDb) {
+      const query: Record<string, unknown> = {};
+      if (filter?.scanSubmissionId) query.scanSubmissionId = filter.scanSubmissionId;
+      if (filter?.questionId) query.questionId = filter.questionId;
+      if (filter?.reviewState) query.reviewState = filter.reviewState;
+      if (filter?.requiresReview !== undefined) query.requiresReview = filter.requiresReview;
+      return await this.mongoDb.collection<ExtractedResponse>('extracted_responses').find(query).toArray();
+    }
+    let list = this.data?.extractedResponses || [];
+    if (filter?.scanSubmissionId) list = list.filter(r => r.scanSubmissionId === filter.scanSubmissionId);
+    if (filter?.questionId) list = list.filter(r => r.questionId === filter.questionId);
+    if (filter?.reviewState) list = list.filter(r => r.reviewState === filter.reviewState);
+    if (filter?.requiresReview !== undefined) list = list.filter(r => r.requiresReview === filter.requiresReview);
+    return list;
+  }
+
+  async getExtractedResponseById(id: string) {
+    if (this.mongoDb) return await this.mongoDb.collection<ExtractedResponse>('extracted_responses').findOne({ id });
+    return (this.data?.extractedResponses || []).find(r => r.id === id);
+  }
+
+  async addExtractedResponses(items: ExtractedResponse[]) {
+    if (this.mongoDb && items.length > 0) {
+      await this.mongoDb.collection('extracted_responses').insertMany(items);
+    }
+    if (this.data) {
+      if (!this.data.extractedResponses) this.data.extractedResponses = [];
+      this.data.extractedResponses.push(...items);
+    }
+    return items;
+  }
+
+  async updateExtractedResponse(id: string, updates: Partial<ExtractedResponse>) {
+    if (this.mongoDb) {
+      await this.mongoDb.collection('extracted_responses').updateOne({ id }, { $set: updates });
+      return await this.mongoDb.collection<ExtractedResponse>('extracted_responses').findOne({ id });
+    }
+    if (this.data) {
+      const list = this.data.extractedResponses || [];
+      const idx = list.findIndex(r => r.id === id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...updates };
+        return list[idx];
+      }
+    }
+    return undefined;
+  }
+
   async addTicket(t: Ticket) {
     if (!this.mongoDb) {
       if (this.data) {
