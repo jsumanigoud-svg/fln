@@ -1,3 +1,4 @@
+import type { ScanQualityResult } from '../scanQuality';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -793,7 +794,15 @@ export function registerEvaluationRoutes(app: express.Express) {
     const user = getAuthUser(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { fileDataUrl, imageDataUrl, fileBase64, provider, pagesPerStudent, expectedCount } = req.body || {};
+    const {
+      fileDataUrl,
+      imageDataUrl,
+      fileBase64,
+      provider,
+      pagesPerStudent,
+      expectedCount,
+      scanSubmissionId,
+    } = req.body || {};
     const singleDataUrl = fileDataUrl || imageDataUrl || fileBase64;
     if (!singleDataUrl || typeof singleDataUrl !== 'string') {
       return res.status(400).json({ error: 'fileDataUrl / imageDataUrl / fileBase64 is required (data URL).' });

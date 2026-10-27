@@ -84,8 +84,7 @@ export * from './student.types';
 export * from './curriculum.types';
 export * from './assessment.types';
 export * from './evaluation.types';
-export * from './operations.types';
-
+export * from './operations.types'
 import { UserRole } from './identity.types';
 import type {
   User,
@@ -130,7 +129,67 @@ import type {
 } from './operations.types';
 import { emitKeypressEvents } from 'readline';
 
+export type ScanProcessingStage =
+  | 'uploaded'
+  | 'quality_checked'
+  | 'rasterized'
+  | 'extracted'
+  | 'failed';
 
+export interface ScanSubmissionPageState {
+  pageNumber: number;
+  rasterized: boolean;
+  extractionStatus: 'pending' | 'done' | 'error';
+  error?: string;
+}
+
+export interface ScanSubmission {
+  id: string;
+  schoolId?: string;
+  classId?: string;
+  studentId?: string;
+  uploaderId: string;
+  fileName?: string;
+  pageCount?: number;
+  provider?: string;
+  stage: ScanProcessingStage;
+  pages?: ScanSubmissionPageState[];
+  scanQuality?: ScanQualityResult;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ExtractedResponseReviewState =
+  | 'pending'
+  | 'reviewed'
+  | 'corrected';
+
+export interface ExtractedResponseBoundingBox {
+  x_mm?: number;
+  y_mm?: number;
+  w_mm?: number;
+  h_mm?: number;
+}
+
+export interface ExtractedResponse {
+  id: string;
+  scanSubmissionId: string;
+  studentId?: string;
+  questionId: string;
+  pageNumber: number;
+  rawText: string;
+  ocrConfidence?: number | null;
+  ocrProvider: string;
+  boundingBox?: ExtractedResponseBoundingBox | null;
+  requiresReview: boolean;
+  reviewState: ExtractedResponseReviewState;
+  correctedAnswer?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface DatabaseSchema {
   users: User[];
@@ -141,6 +200,8 @@ interface DatabaseSchema {
   worksheets: Worksheet[];
   levelWorksheets: LevelWorksheet[];
   levelHtmlTemplates: LevelHtmlTemplate[];
+scanSubmissions: ScanSubmission[];
+extractedResponses: ExtractedResponse[];
   questionBank: QuestionBankEntry[];
   answerSubmissions: AnswerSubmission[];
   evaluationReports: EvaluationReport[];
@@ -167,6 +228,8 @@ interface DatabaseSchema {
 const COLLECTION_NAMES: Record<keyof DatabaseSchema, string> = {
   users: 'users',
   schools: 'schools',
+scanSubmissions: 'scan_submissions',
+extractedResponses: 'extracted_responses',
   classes: 'classes',
   students: 'students',
   questions: 'questions',
@@ -575,7 +638,7 @@ export class DBStore {
         // advertises. The previous version used an unanchored case-insensitive
         // regex (e.g. /foo/i), which CANNOT use a B-tree index in this
         // MongoDB version — every keystroke COLLSCAN'd the 86k-row
-        // collection. The fix is a BSON range { $gte: prefix, $lt: prefix+'￿' }
+        // collection. The fix is a BSON range { $gte: prefix, $lt: prefix+' ' }
         // combined with a strength:2 collation on the cursor. Combined with
         // the matching collation-aware indexes (see the `init()` block
         // above), Mongo uses index OR (one IXSCAN per $or branch) and the
@@ -589,7 +652,7 @@ export class DBStore {
         // The in-memory (file-fallback) path below mirrors this with
         // .startsWith() so dev and prod return the same results.
         const prefix = search;
-        const upper = prefix + '￿';
+const upper = prefix + '\0';
         filter.$or = [
           { name:        { $gte: prefix, $lt: upper } },
           { displayId:   { $gte: prefix, $lt: upper } },
@@ -686,7 +749,7 @@ export class DBStore {
         // the same collation, Mongo uses the same six IXSCANs as
         // the find, so the count is also single-digit ms on 86k rows.
         const prefix = search;
-        const upper = prefix + '￿';
+const upper = prefix + '\0';
         filter.$or = [
           { name:        { $gte: prefix, $lt: upper } },
           { displayId:   { $gte: prefix, $lt: upper } },
@@ -4726,6 +4789,8 @@ export class DBStore {
       worksheets,
       levelWorksheets: [],
       levelHtmlTemplates: [],
+scanSubmissions: [],
+extractedResponses: [],
       questionBank: [],
       answerSubmissions,
       evaluationReports,
