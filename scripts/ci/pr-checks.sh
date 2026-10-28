@@ -40,7 +40,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 declare -a NAMES RESULTS LOGS
-RUN_COUNT=0
 record() { NAMES+=("$1"); RESULTS+=("$2"); }
 section() { printf '\n\033[1m=== %s ===\033[0m\n' "$1"; }
 LOG_DIR="$(mktemp -d)"
@@ -48,8 +47,7 @@ LOG_DIR="$(mktemp -d)"
 run() { # run <label> <command...>
   # Output is kept per section so the failing part can be quoted in the PR comment.
   local label="$1"; shift
-local log="$LOG_DIR/${RUN_COUNT}.log"
-RUN_COUNT=$((RUN_COUNT + 1))
+  local log="$LOG_DIR/${#NAMES[@]}.log"
   section "$label"
   if "$@" >"$log" 2>&1; then record "$label" PASS; else record "$label" FAIL; fi
   cat "$log"
@@ -57,33 +55,22 @@ RUN_COUNT=$((RUN_COUNT + 1))
 }
 
 # ---------------------------------------------------------------- 1. markers
-
-
 check_conflict_markers() {
-  local bad=0
-  local files
-
-  files=$({ git diff --name-only --diff-filter=ACMR; git ls-files --others --exclude-standard; } || true)
-  files=$(printf '%s\n' "$files" | grep -E '\.(ts|tsx|js|jsx|cjs|mjs|json|html|css|md|yml|yaml|py)$' | sort -u || true)
-
-  if [ -z "$files" ]; then
-    echo "no changed source files"
-    return 0
-  fi
-
+  local base files bad=0
+  # In CI the checkout is the merge commit, so HEAD^1 is the base branch tip.
+  if git rev-parse --verify -q HEAD^2 >/dev/null; then base=HEAD^1; else base="${PR_BASE:-origin/main}"; fi
+  files=$(git diff --name-only --diff-filter=AM "$base" HEAD 2>/dev/null \
+    | grep -E '\.(ts|tsx|js|jsx|cjs|mjs|json|html|css|md|yml|yaml|py)$' || true)
+  [ -z "$files" ] && { echo "no changed source files"; return 0; }
   while IFS= read -r f; do
     [ -f "$f" ] || continue
     if grep -nE '^(<<<<<<< |>>>>>>> |=======$)' "$f" >/dev/null 2>&1; then
-      echo "conflict marker in $f:"
-      grep -nE '^(<<<<<<< |>>>>>>> |=======$)' "$f" | head -3
-      bad=1
+      echo "conflict marker in $f:"; grep -nE '^(<<<<<<< |>>>>>>> |=======$)' "$f" | head -3; bad=1
     fi
   done <<< "$files"
-
-  [ "$bad" -eq 0 ] && echo "none found"
-  return "$bad"
+  [ $bad -eq 0 ] && echo "none found"
+  return $bad
 }
-
 if want consistency; then
   run "conflict markers" check_conflict_markers
   run "skill/level snapshot drift" npx tsx scripts/generate-skill-level-map.ts --check
