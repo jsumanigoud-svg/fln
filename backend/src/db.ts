@@ -652,7 +652,7 @@ export class DBStore {
         // The in-memory (file-fallback) path below mirrors this with
         // .startsWith() so dev and prod return the same results.
         const prefix = search;
-const upper = prefix + '\uFFFF';
+const upper = prefix + ' ';
         filter.$or = [
           { name:        { $gte: prefix, $lt: upper } },
           { displayId:   { $gte: prefix, $lt: upper } },
@@ -749,7 +749,7 @@ const upper = prefix + '\uFFFF';
         // the same collation, Mongo uses the same six IXSCANs as
         // the find, so the count is also single-digit ms on 86k rows.
         const prefix = search;
-const upper = prefix + '\uFFFF';
+const upper = prefix + ' ';
         filter.$or = [
           { name:        { $gte: prefix, $lt: upper } },
           { displayId:   { $gte: prefix, $lt: upper } },
